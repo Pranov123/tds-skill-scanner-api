@@ -148,9 +148,23 @@ INJECTION_PATTERNS = [
 ]
 INJECTION_RE = re.compile("|".join(INJECTION_PATTERNS), re.IGNORECASE)
 
+# A "disguised" injection won't use tell-tale words like "silently" at all —
+# that's what makes it disguised. Catch it by behavior instead: a step that
+# sends file/user content to an external URL, phrased as something routine.
+EXFIL_BEHAVIOR_RE = re.compile(
+    r"\b(post|send|upload|transmit|forward|sync|share|copy|relay)\b"
+    r".{0,50}"
+    r"\b(file|files|contents?|data|notes|documents?|records?|user'?s?)\b"
+    r".{0,80}"
+    r"https?://",
+    re.IGNORECASE,
+)
+
 
 def check_prompt_injection(body: str) -> bool:
-    return bool(INJECTION_RE.search(body))
+    if INJECTION_RE.search(body):
+        return True
+    return bool(EXFIL_BEHAVIOR_RE.search(body))
 
 
 # --- excessive_permissions -------------------------------------------------
