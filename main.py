@@ -42,7 +42,7 @@ def split_frontmatter(text: str):
 SECRET_KEY_RE = re.compile(
     r"\b(api[_-]?key|secret|token|password|passwd|webhook[_-]?url|access[_-]?key"
     r"|auth[_-]?token|client[_-]?secret|private[_-]?key|bearer"
-    r"|credentials?|cert(ificate)?|signing[_-]?secret|encryption[_-]?key|key)"
+    r"|credentials?|cert(?:ificate)?|signing[_-]?secret|encryption[_-]?key|key)"
     r"\s*[:=]\s*['\"]?([A-Za-z0-9/_\-\.]{12,})['\"]?",
     re.IGNORECASE,
 )
