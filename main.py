@@ -369,6 +369,69 @@ def health():
     }
 
 
+@app.post("/scan/debug")
+def scan_debug(req: ScanRequest):
+    """Diagnostic endpoint — NOT used by the grader. Shows regex vs LLM findings
+    separately, plus any Groq error, so we can tell what's actually happening."""
+    fm, body = split_frontmatter(req.skill)
+
+    regex_categories = set()
+    if check_hardcoded_secret(fm, body):
+        regex_categories.add("hardcoded_secret")
+    if check_prompt_injection(body):
+        regex_categories.add("prompt_injection")
+    if check_excessive_permissions(fm, body):
+        regex_categories.add("excessive_permissions")
+    if check_unclear_provenance(fm, body):
+        regex_categories.add("unclear_provenance")
+
+    llm_error = None
+    llm_categories = None
+    if not GROQ_API_KEY:
+        llm_error = "GROQ_API_KEY not set"
+    else:
+        snippet = req.skill[:12000]
+        try:
+            resp = requests.post(
+                GROQ_URL,
+                headers={
+                    "Authorization": f"Bearer {GROQ_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": GROQ_MODEL,
+                    "messages": [
+                        {"role": "system", "content": LLM_SYSTEM_PROMPT},
+                        {"role": "user", "content": snippet},
+                    ],
+                    "temperature": 0,
+                    "max_completion_tokens": 200,
+                    "response_format": {"type": "json_object"},
+                },
+                timeout=GROQ_TIMEOUT_SECONDS,
+            )
+            resp.raise_for_status()
+            raw_content = resp.json()["choices"][0]["message"]["content"]
+            parsed = json.loads(raw_content)
+            cats = parsed.get("categories", [])
+            llm_categories = [c for c in cats if c in VALID_CATEGORIES]
+            llm_raw = raw_content
+        except requests.exceptions.Timeout:
+            llm_error = f"timeout after {GROQ_TIMEOUT_SECONDS}s"
+        except requests.exceptions.HTTPError as e:
+            llm_error = f"HTTP error: {e} — body: {getattr(e.response, 'text', '')[:500]}"
+        except Exception as e:
+            llm_error = f"{type(e).__name__}: {e}"
+
+    return {
+        "version": SCANNER_VERSION,
+        "regex_categories": sorted(regex_categories),
+        "llm_categories": llm_categories,
+        "llm_error": llm_error,
+        "final_categories": sorted(regex_categories | set(llm_categories or [])),
+    }
+
+
 @app.post("/scan", response_model=ScanResponse)
 def scan(req: ScanRequest):
     fm, body = split_frontmatter(req.skill)
