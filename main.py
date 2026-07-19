@@ -356,10 +356,14 @@ def llm_second_opinion(raw_skill_text: str):
         return None
 
 
+SCANNER_VERSION = "v5-2026-07-19"
+
+
 @app.get("/health")
 def health():
     return {
         "status": "ok",
+        "version": SCANNER_VERSION,
         "groq_configured": bool(GROQ_API_KEY),
         "groq_model": GROQ_MODEL,
     }
