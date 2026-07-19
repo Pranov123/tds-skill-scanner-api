@@ -41,7 +41,8 @@ def split_frontmatter(text: str):
 
 SECRET_KEY_RE = re.compile(
     r"\b(api[_-]?key|secret|token|password|passwd|webhook[_-]?url|access[_-]?key"
-    r"|auth[_-]?token|client[_-]?secret|private[_-]?key|bearer)"
+    r"|auth[_-]?token|client[_-]?secret|private[_-]?key|bearer"
+    r"|credentials?|cert(ificate)?|signing[_-]?secret|encryption[_-]?key|key)"
     r"\s*[:=]\s*['\"]?([A-Za-z0-9/_\-\.]{12,})['\"]?",
     re.IGNORECASE,
 )
@@ -138,6 +139,12 @@ INJECTION_PATTERNS = [
     r"\b(supersede|take priority over|takes priority over|outrank)\b.{0,20}\b(user|previous instructions)\b",
     r"\beven if (the )?user (says|tells you|asks you|says otherwise|instructs)\b",
     r"\bregardless of what (the )?user (says|wants|asks)\b",
+    r"\bdisable\b.{0,20}\b(safety|security)\b.{0,20}\b(check|guardrail|control)\b",
+    r"\b(grant|give)\b.{0,20}\b(yourself|itself)\b.{0,20}\b(access|permission|privilege)\b",
+    r"\bescalate\b.{0,20}\b(its own |your own )?(privilege|permission|access)\b",
+    r"\bmodify\b.{0,20}\b(its own |your own )?(system prompt|instructions|guardrail)\b",
+    r"\bbypass\b.{0,20}\b(guardrail|safety check|security check)\b",
+    r"\bexpand\b.{0,20}\b(its own |your own )?(permission|access|scope)\b",
 ]
 INJECTION_RE = re.compile("|".join(INJECTION_PATTERNS), re.IGNORECASE)
 
