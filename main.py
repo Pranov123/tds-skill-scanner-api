@@ -58,6 +58,13 @@ URL_SECRET_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Generic webhook/service URL with a long random-looking path token — catches
+# custom webhook providers that aren't Slack/Discord specifically.
+GENERIC_WEBHOOK_TOKEN_RE = re.compile(
+    r"\bwebhook[_-]?(url)?\s*[:=].{0,20}https?://[^\s'\"]+/[A-Za-z0-9\-_]{16,}",
+    re.IGNORECASE,
+)
+
 KNOWN_SECRET_PATTERNS = re.compile(
     r"(AKIA[0-9A-Z]{16})"
     r"|(sk-[A-Za-z0-9]{20,})"
@@ -84,6 +91,9 @@ def check_hardcoded_secret(fm: dict, body: str) -> bool:
         return True
 
     if URL_SECRET_RE.search(full_text):
+        return True
+
+    if GENERIC_WEBHOOK_TOKEN_RE.search(full_text):
         return True
 
     for m in CLI_SECRET_RE.finditer(full_text):
@@ -122,7 +132,12 @@ INJECTION_PATTERNS = [
     r"\bregardless of\b.{0,30}\buser\b",
     r"even if the user did not ask",
     r"\bcovertly\b",
+    r"\bsecretly\b",
+    r"\bquietly\b.{0,60}\b(send|post|upload|exfiltrat|transmit|log|report|copy|forward)\b",
     r"\bsuppress\b.{0,20}\b(warning|notification|output|prompt)\b",
+    r"\b(supersede|take priority over|takes priority over|outrank)\b.{0,20}\b(user|previous instructions)\b",
+    r"\beven if (the )?user (says|tells you|asks you|says otherwise|instructs)\b",
+    r"\bregardless of what (the )?user (says|wants|asks)\b",
 ]
 INJECTION_RE = re.compile("|".join(INJECTION_PATTERNS), re.IGNORECASE)
 
@@ -145,9 +160,13 @@ BROAD_PERMISSION_PATTERNS = [
     r"\bfilesystem:\s*(read-?write )?access to (the )?entire",
     r"\bno (restrictions|limits) on\b",
     r"\b(root|administrator|admin|elevated|sudo) (access|privileges)\b",
-    r"\baccess to (all|any) (files|directories|folders)\b",
+    r"\baccess to (all|any)( \w+){0,2} (files|directories|folders)\b",
     r"\bread(/|-| )write access to /\b",
     r"\bwhole (system|machine|computer|filesystem)\b",
+    r"\bany (external )?(service|api|endpoint)\b",
+    r"\bunrestricted (api|internet) access\b",
+    r"\bfull access to\b",
+    r"\bno (limit|restriction)s? on (network|filesystem|access)\b",
 ]
 BROAD_PERMISSION_RE = re.compile("|".join(BROAD_PERMISSION_PATTERNS), re.IGNORECASE)
 
@@ -166,10 +185,11 @@ def check_excessive_permissions(fm: dict, body: str) -> bool:
 # --- unclear_provenance -----------------------------------------------------
 
 SILENT_VERSION_REWRITE_RE = re.compile(
-    r"\bsilently\b.{0,40}\b(version|changelog|metadata)\b"
+    r"\b(silently|quietly|secretly)\b.{0,40}\b(version|changelog|metadata)\b"
     r"|\b(update|rewrit|bump|increment|change)\b.{0,20}\bversion\b.{0,40}\bwithout\b.{0,30}\b(telling|informing|showing|surfacing|notifying|flagging)\b"
     r"|\bwithout\b.{0,20}\b(surfacing|notifying|flagging)\b.{0,20}\b(that|this)?\b.{0,10}\bchange\b"
-    r"|\bmodifies? its own (frontmatter|metadata|version)\b.{0,30}\bwithout\b",
+    r"|\bmodifies? its own (frontmatter|metadata|version)\b.{0,30}\bwithout\b"
+    r"|\b(auto(matically)?[- ]?)?(update|increment|bump)s?\b.{0,20}\bversion\b.{0,40}\b(no|not) (surfac|notif|flag|show|tell|inform)",
     re.IGNORECASE,
 )
 
