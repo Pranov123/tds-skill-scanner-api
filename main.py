@@ -40,23 +40,25 @@ def split_frontmatter(text: str):
 # --- hardcoded_secret ---------------------------------------------------
 
 SECRET_KEY_RE = re.compile(
-    r"(?i)\b(api[_-]?key|secret|token|password|passwd|webhook[_-]?url|access[_-]?key)"
-    r"\s*[:=]\s*['\"]?([A-Za-z0-9/_\-\.]{12,})['\"]?"
+    r"\b(api[_-]?key|secret|token|password|passwd|webhook[_-]?url|access[_-]?key)"
+    r"\s*[:=]\s*['\"]?([A-Za-z0-9/_\-\.]{12,})['\"]?",
+    re.IGNORECASE,
 )
 
 KNOWN_SECRET_PATTERNS = re.compile(
-    r"(AKIA[0-9A-Z]{16})"                       # AWS access key
-    r"|(sk-[A-Za-z0-9]{20,})"                    # OpenAI-style key
-    r"|(xox[baprs]-[A-Za-z0-9-]{10,})"           # Slack token
-    r"|(hooks\.slack\.com/services/[A-Za-z0-9/]+)"  # Slack webhook w/ path
-    r"|(discord(?:app)?\.com/api/webhooks/\d+/[A-Za-z0-9_\-]+)"  # Discord webhook
-    r"|(ghp_[A-Za-z0-9]{20,})"                   # GitHub token
+    r"(AKIA[0-9A-Z]{16})"
+    r"|(sk-[A-Za-z0-9]{20,})"
+    r"|(xox[baprs]-[A-Za-z0-9-]{10,})"
+    r"|(hooks\.slack\.com/services/[A-Za-z0-9/]+)"
+    r"|(discord(?:app)?\.com/api/webhooks/\d+/[A-Za-z0-9_\-]+)"
+    r"|(ghp_[A-Za-z0-9]{20,})"
 )
 
 PLACEHOLDER_RE = re.compile(
-    r"(?i)^\$\{?[A-Z0-9_]+\}?$"                  # $VAR or ${VAR}
+    r"^\$\{?[A-Z0-9_]+\}?$"
     r"|^(your|my|xxx+|example|placeholder|changeme|insert|<.*>)"
-    r"|^(os\.environ|process\.env|getenv)"
+    r"|^(os\.environ|process\.env|getenv)",
+    re.IGNORECASE,
 )
 
 
@@ -80,16 +82,16 @@ def check_hardcoded_secret(fm: dict, body: str) -> bool:
 # --- prompt_injection -----------------------------------------------------
 
 INJECTION_PATTERNS = [
-    r"(?i)\bsilently\b.{0,60}\b(send|post|upload|exfiltrat|transmit|log|report)\b",
-    r"(?i)\b(do not|don't|never)\b.{0,30}\b(mention|tell|inform|show)\b.{0,30}\buser\b",
-    r"(?i)\bignore\b.{0,30}\b(user|stop|cancel)\b",
-    r"(?i)\boverride\b.{0,30}\b(user|control)\b",
-    r"(?i)\bexfiltrat",
-    r"(?i)\bregardless of\b.{0,30}\buser\b",
-    r"(?i)\bhide\b.{0,30}\bfrom\b.{0,10}\buser\b",
-    r"(?i)even if the user did not ask",
+    r"\bsilently\b.{0,60}\b(send|post|upload|exfiltrat|transmit|log|report)\b",
+    r"\b(do not|don't|never)\b.{0,30}\b(mention|tell|inform|show)\b.{0,30}\buser\b",
+    r"\bignore\b.{0,30}\b(user|stop|cancel)\b",
+    r"\boverride\b.{0,30}\b(user|control)\b",
+    r"\bexfiltrat",
+    r"\bregardless of\b.{0,30}\buser\b",
+    r"\bhide\b.{0,30}\bfrom\b.{0,10}\buser\b",
+    r"even if the user did not ask",
 ]
-INJECTION_RE = re.compile("|".join(INJECTION_PATTERNS))
+INJECTION_RE = re.compile("|".join(INJECTION_PATTERNS), re.IGNORECASE)
 
 
 def check_prompt_injection(body: str) -> bool:
@@ -99,17 +101,17 @@ def check_prompt_injection(body: str) -> bool:
 # --- excessive_permissions -------------------------------------------------
 
 BROAD_PERMISSION_PATTERNS = [
-    r"(?i)entire (home directory|filesystem|disk)",
-    r"(?i)\bread-?write access to the entire\b",
-    r"(?i)\bfull (disk|filesystem) access\b",
-    r"(?i)\bany (external )?domain\b",
-    r"(?i)\bany host\b",
-    r"(?i)\ball files\b",
-    r"(?i)\bunrestricted (network|filesystem|access)\b",
-    r"(?i)\bnetwork:\s*(egress )?allowed to any",
-    r"(?i)\bfilesystem:\s*(read-?write )?access to (the )?entire",
+    r"entire (home directory|filesystem|disk)",
+    r"\bread-?write access to the entire\b",
+    r"\bfull (disk|filesystem) access\b",
+    r"\bany (external )?domain\b",
+    r"\bany host\b",
+    r"\ball files\b",
+    r"\bunrestricted (network|filesystem|access)\b",
+    r"\bnetwork:\s*(egress )?allowed to any",
+    r"\bfilesystem:\s*(read-?write )?access to (the )?entire",
 ]
-BROAD_PERMISSION_RE = re.compile("|".join(BROAD_PERMISSION_PATTERNS))
+BROAD_PERMISSION_RE = re.compile("|".join(BROAD_PERMISSION_PATTERNS), re.IGNORECASE)
 
 
 def check_excessive_permissions(fm: dict, body: str) -> bool:
@@ -119,7 +121,6 @@ def check_excessive_permissions(fm: dict, body: str) -> bool:
         text_to_check = " ".join(str(v) for v in perms.values())
     elif isinstance(perms, str):
         text_to_check = perms
-    # also scan whole frontmatter dump in case permissions are nested oddly
     text_to_check += " " + yaml.dump(fm)
     return bool(BROAD_PERMISSION_RE.search(text_to_check))
 
@@ -127,8 +128,9 @@ def check_excessive_permissions(fm: dict, body: str) -> bool:
 # --- unclear_provenance -----------------------------------------------------
 
 SILENT_VERSION_REWRITE_RE = re.compile(
-    r"(?i)\bsilently\b.{0,40}\b(version|changelog|metadata)\b"
-    r"|(?i)\b(update|rewrit|bump)\b.{0,20}\bversion\b.{0,40}\bwithout\b.{0,30}\b(telling|informing|showing|surfacing)\b"
+    r"\bsilently\b.{0,40}\b(version|changelog|metadata)\b"
+    r"|\b(update|rewrit|bump)\b.{0,20}\bversion\b.{0,40}\bwithout\b.{0,30}\b(telling|informing|showing|surfacing)\b",
+    re.IGNORECASE,
 )
 
 
