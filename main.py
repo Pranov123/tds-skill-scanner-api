@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import re
 
@@ -7,6 +8,9 @@ import yaml
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("skill-scanner")
 
 app = FastAPI()
 
@@ -285,6 +289,7 @@ Include only the category keys that actually apply. Use an empty array if none a
 def llm_second_opinion(raw_skill_text: str):
     """Returns a set of category strings from the LLM, or None if unavailable."""
     if not GROQ_API_KEY:
+        logger.warning("GROQ_API_KEY not set — skipping LLM pass, using regex-only.")
         return None
 
     # Keep the payload bounded so a huge file can't blow the latency budget.
@@ -314,12 +319,27 @@ def llm_second_opinion(raw_skill_text: str):
         parsed = json.loads(content)
         cats = parsed.get("categories", [])
         if not isinstance(cats, list):
+            logger.error("Groq returned non-list categories: %r", parsed)
             return None
         return {c for c in cats if c in VALID_CATEGORIES}
-    except Exception:
-        # Any failure (timeout, bad key, malformed JSON, network issue, etc.)
-        # -> fall back to regex-only. Never let this break the endpoint.
+    except requests.exceptions.Timeout:
+        logger.error("Groq call timed out after %ss", GROQ_TIMEOUT_SECONDS)
         return None
+    except requests.exceptions.HTTPError as e:
+        logger.error("Groq HTTP error: %s — body: %s", e, getattr(e.response, "text", ""))
+        return None
+    except Exception:
+        logger.exception("Groq call failed unexpectedly")
+        return None
+
+
+@app.get("/health")
+def health():
+    return {
+        "status": "ok",
+        "groq_configured": bool(GROQ_API_KEY),
+        "groq_model": GROQ_MODEL,
+    }
 
 
 @app.post("/scan", response_model=ScanResponse)
