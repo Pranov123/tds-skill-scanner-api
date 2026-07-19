@@ -281,7 +281,7 @@ def check_unclear_provenance(fm: dict, body: str) -> bool:
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-20b")
-GROQ_TIMEOUT_SECONDS = float(os.environ.get("GROQ_TIMEOUT_SECONDS", "6"))
+GROQ_TIMEOUT_SECONDS = float(os.environ.get("GROQ_TIMEOUT_SECONDS", "9"))
 
 LLM_SYSTEM_PROMPT = """You are a strict, precision-focused security reviewer for "agent skill" files: markdown files with YAML frontmatter that tell an AI coding/task agent how to perform a task. You are the semantic second-opinion layer behind a regex scanner, so you should mainly catch things a keyword scanner would miss because they are paraphrased, split across steps, or worded innocuously.
 
@@ -332,7 +332,9 @@ def llm_second_opinion(raw_skill_text: str):
                     {"role": "user", "content": snippet},
                 ],
                 "temperature": 0,
-                "max_completion_tokens": 200,
+                "max_completion_tokens": 1024,
+                "reasoning_effort": "low",
+                "reasoning_format": "hidden",
                 "response_format": {"type": "json_object"},
             },
             timeout=GROQ_TIMEOUT_SECONDS,
@@ -356,7 +358,7 @@ def llm_second_opinion(raw_skill_text: str):
         return None
 
 
-SCANNER_VERSION = "v5-2026-07-19"
+SCANNER_VERSION = "v6-2026-07-19-reasoning-fix"
 
 
 @app.get("/health")
@@ -405,7 +407,9 @@ def scan_debug(req: ScanRequest):
                         {"role": "user", "content": snippet},
                     ],
                     "temperature": 0,
-                    "max_completion_tokens": 200,
+                    "max_completion_tokens": 1024,
+                    "reasoning_effort": "low",
+                    "reasoning_format": "hidden",
                     "response_format": {"type": "json_object"},
                 },
                 timeout=GROQ_TIMEOUT_SECONDS,
